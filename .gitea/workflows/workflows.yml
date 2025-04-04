@@ -1,0 +1,42 @@
+name: lint-scan
+on:
+  - push
+
+jobs:
+  analyze:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+
+      - uses: trufflesecurity/trufflehog@main
+        name: Secret Scanning
+        with:
+          extra_args: --results=verified,unknown
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Run Flake8 (Linting)
+        uses: py-actions/flake8@v2
+        with:
+          path: '.'
+          ignore: 'E501,E262,E225,W191'
+
+
+  sonar_publish:
+    name: Publish to SonarQube Instance
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+          
+      - uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
