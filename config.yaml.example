@@ -1,0 +1,78 @@
+formatters:
+    standard:
+        format: "File: {{ filename() }} - CPU: {{ username() }}% / Mem: {{ os_name() }}{{ os_version() }} {{ fg('deep_sky_blue_3a') }}[{{ date('%d/%m/%Y %H:%M:%S') }}]{{ attr(0) }} - {{ levelname }} - {{ fg('grey_46') }}{{ msg }}{{ attr(0) }}"
+        rules:
+            "levelname == 'SUCCESS'":
+              levelname: "{{ fg('green') }}SUCCESS{{ attr(0) }}"
+            "levelname == 'CRITICAL'":
+              levelname: "{{ fg('red') }}CRITICAL{{ attr(0) }}"
+              filename(): "{{ fg('red') }}{{ filename() }}{{ attr(0) }}"
+            "levelname == 'ERROR'":
+              levelname: "{{ fg('red') }}DB_ERROR{{ attr(0) }}"
+            "levelname == 'ERROR'":
+              username(): "{{ fg('red') }}{{ username() }}{{ attr(0) }}"
+            "levelname == 'ERROR' and 'secret' in msg":
+              levelname: "{{ fg('yellow') }}{{ levelname }}{{ attr(0) }}"
+            __default__:
+              levelname: "{{ fg('gray') }}DEFAULT{{ attr(0) }}"
+              msg: "{{ fg('yellow') }}DEFAULT{{ attr(0) }}"
+
+handlers:
+    console:
+        class: zpp_logs.ConsoleHandler
+        level: zpp_logs.DEBUG # On log tout a partir de DEBUG
+        ops: ">="
+        formatter: standard
+        filters:
+            - "'secret' not in msg" # Filter out messages containing 'secret'
+            - "levelname != 'DEBUG'" # Filter out DEBUG messages
+    file_log:
+        class: zpp_logs.FileHandler
+        level: zpp_logs.INFO
+        formatter: standard
+        filename: "logs/{{ date('%Y-%m-%d') }}_app.log"
+        maxBytes: 1024 # Very small for quick testing of circular logging
+        backupCount: 0 # No backups, enable circular logging
+    db_log:
+        class: zpp_logs.DatabaseHandler
+        level: zpp_logs.INFO
+        formatter: standard
+        connector:
+            engine: sqlite
+            filename: "logs/app.db"
+            table: "my_app_logs" # New table name
+        columns:
+            timestamp: "date('%Y-%m-%d %H:%M:%S')"
+            level: "levelname"
+            logger_name: "name"
+            message: "msg"
+            # Example of a custom column
+            # process_id: "pid"
+    db_log_default:
+        class: zpp_logs.DatabaseHandler
+        level: zpp_logs.INFO
+        formatter: standard
+        connector:
+            engine: sqlite
+            filename: "logs/app_default.db"
+            table: "default_logs" # Default table name
+    resend_log:
+        class: zpp_logs.ResendHandler
+        level: zpp_logs.ERROR
+        formatter: standard
+        api_key: re_WYGF6Pfv_NcNuZNSF9UdL54YiuiziVZr2 # Replace with your actual Resend API Key
+        fromaddr: "onboarding@apps.zephyroff.fr" # Must be a verified domain in Resend
+        to: 
+            - "alexandre.p.666@gmail.com" # Replace with your actual recipient email
+        subject: "RESEND ALERT: {{ levelname }} from {{ name }} at {{ date('%H:%M') }}"
+
+loggers:
+    root: # Logger par défaut
+        handlers:
+            - console
+            - file_log
+            - db_log
+            - db_log_default
+    special_logger:
+        handlers:
+            - console

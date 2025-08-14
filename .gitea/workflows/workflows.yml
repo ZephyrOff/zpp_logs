@@ -35,6 +35,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         name: Checkout
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage pytest
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
+      - name: Run tests and generate coverage report
+        run: |
+          source venv/bin/activate
+          pytest --junitxml=report.xml
+          coverage run -m pytest
+          coverage xml -o coverage.xml
+        continue-on-error: true
           
       - uses: SonarSource/sonarqube-scan-action@v4
         env:
