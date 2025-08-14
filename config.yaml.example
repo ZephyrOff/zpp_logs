@@ -60,10 +60,10 @@ handlers:
         class: zpp_logs.ResendHandler
         level: zpp_logs.ERROR
         formatter: standard
-        api_key: re_WYGF6Pfv_NcNuZNSF9UdL54YiuiziVZr2 # Replace with your actual Resend API Key
-        fromaddr: "onboarding@apps.zephyroff.fr" # Must be a verified domain in Resend
+        api_key: API_KEY # Replace with your actual Resend API Key
+        fromaddr: "onboarding@resend_domain" # Must be a verified domain in Resend
         to: 
-            - "alexandre.p.666@gmail.com" # Replace with your actual recipient email
+            - "zephyroff@resend_domain" # Replace with your actual recipient email
         subject: "RESEND ALERT: {{ levelname }} from {{ name }} at {{ date('%H:%M') }}"
 
 loggers:
