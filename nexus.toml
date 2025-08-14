@@ -25,14 +25,18 @@ documentation = "https://github.com/ZephyrOff/zpp_logs"
 psutil = "N.A"
 impmagic = "N.A"
 zpp_color = "N.A"
+pyyaml = "N.A"
+jinja2 = "N.A"
+requests = "N.A"
+SQLAlchemy = "N.A"
 
 [project.dependencies.windows]
 
 [project.dependencies.linux]
 
 [project.build]
-packages = ["os", "inspect", "sys", "re", "platform", "datetime", "zpp_color", "smtplib", "email", "psutil", "yaml", "impmagic"]
-includes = []
+packages = ["os", "inspect", "sys", "re", "platform", "datetime", "zpp_color", "smtplib", "email", "psutil", "yaml", "impmagic", "pyyaml", "jinja2", "requests", "SQLAlchemy"]
+includes = ["core", "handlers", "jinja_utils", "levels"]
 excludes = []
 include_files = []
 optimize = 0
