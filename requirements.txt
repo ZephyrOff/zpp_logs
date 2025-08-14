@@ -3,3 +3,4 @@ jinja2
 requests
 SQLAlchemy
 zpp_color
+psutil
