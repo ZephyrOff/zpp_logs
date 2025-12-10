@@ -6,6 +6,7 @@ from .handlers.database import DatabaseHandler
 from .handlers.file import FileHandler
 from .handlers.resend import ResendHandler
 from .handlers.smtp import SMTPHandler
+from .handlers.webhook import WebhookHandler
 
 from .levels import CRITICAL, ERROR, WARNING, SUCCESS, INFO, DEBUG, NOTSET, _level_to_name, _name_to_level
 from .jinja_utils import _shared_jinja_env
@@ -18,19 +19,18 @@ _handler_class_map = {
     'zpp_logs.DatabaseHandler': DatabaseHandler,
     'zpp_logs.SMTPHandler': SMTPHandler,
     'zpp_logs.ResendHandler': ResendHandler,
+    'zpp_logs.WebhookHandler': WebhookHandler,
 }
 
 # --- Core Components ---
 class CustomFormatter:
     def __init__(self, format_str):
-        print(f"CustomFormatter __init__ format_str: {format_str}") # Debug print
         self.format_str = format_str
         self.rules = {}
         
         self.env = _shared_jinja_env
 
         self.template = self.env.from_string(self.format_str)
-        print(f"CustomFormatter __init__ self.template: {self.template}") # Debug print
 
     def apply_rules(self, record):
         render_context = record.copy()

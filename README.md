@@ -86,210 +86,610 @@ Les handlers sont responsables de l'envoi des messages de log vers des destinati
 *   **`formatter`** : Le nom de l'instance du formatter à utiliser pour ce handler, tel que défini dans la section `formatters` du `config.yaml`.
 *   **`filters`** : Une liste d'expressions Jinja2. Si une expression évalue à `False` pour un message donné, ce message est filtré et n'est pas traité par le handler. Utile pour des filtrages complexes basés sur le contenu du message ou d'autres attributs du record de log.
 
-#### ConsoleHandler
+### ConsoleHandler
 
-Écrit les logs dans la console (sortie standard ou erreur standard).
+Le `ConsoleHandler` est conçu pour afficher les messages de log directement dans la console (sortie standard ou erreur standard).
 
-*   **`output`** : Spécifie la destination de la sortie. Peut être `sys.stdout` (par défaut) ou `sys.stderr`.
+#### Fonctionnalité
 
-    ```yaml
-    # Exemple de ConsoleHandler dans config.yaml
-    handlers:
-        console_stdout:
-            class: zpp_logs.ConsoleHandler
-            level: zpp_logs.INFO
-            ops: ">="
-            formatter: standard
-            filters:
-                - "'secret' not in msg" # Filtre les messages contenant le mot 'secret'
-            output: sys.stdout # Logs vers la sortie standard
-        console_stderr:
-            class: zpp_logs.ConsoleHandler
-            level: zpp_logs.ERROR
-            ops: ">="
-            formatter: standard
-            output: sys.stderr # Logs d'erreur vers la sortie d'erreur standard
-    ```
+Ce handler est l'un des plus simples. Il prend un message de log, le formate en utilisant le `CustomFormatter` fourni, et l'écrit sur le flux de sortie spécifié, qui est par défaut `sys.stdout` (la sortie standard). Il est idéal pour le développement ou pour les applications en ligne de commande où une visibilité immédiate des logs est nécessaire.
 
-#### FileHandler
+#### Options
 
-Écrit les logs dans un fichier, avec des options avancées de rotation.
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis pour que le message soit traité par ce handler. Doit être une constante de `zpp_logs.levels` (ex: `INFO`, `DEBUG`). |
+| `formatter`| `CustomFormatter` | `None` | Une instance de `CustomFormatter` chargée de mettre en forme le message avant son affichage. |
+| `filters` | `list` | `None` | Une liste de chaînes de caractères. Chaque chaîne est une expression Jinja2 qui doit retourner `True` pour que le log soit traité. |
+| `output` | `str` | `'sys.stdout'` | Le flux de sortie. Peut être `'sys.stdout'` ou `'sys.stderr'`. |
+| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau (`>=`, `==`, etc.). |
+| `async_mode` | `bool` | `False` | Si `True`, les logs sont traités dans un thread séparé pour ne pas bloquer l'application principale. |
 
-*   **`filename`** : Le chemin du fichier de log. Peut inclure des expressions Jinja2 pour des noms de fichiers dynamiques (ex: par date).
-*   **`maxBytes`** : La taille maximale du fichier de log en octets avant rotation. Si `0`, la taille n'est pas limitée.
-*   **`backupCount`** : Le nombre de fichiers de backup à conserver après rotation.
-    *   Si `backupCount > 0` : Rotation standard. Quand le fichier atteint `maxBytes`, il est renommé (ex: `app.log.1`, `app.log.2`, etc.) et un nouveau fichier est créé. Les anciens backups sont supprimés si leur nombre dépasse `backupCount`.
-    *   Si `backupCount == 0` et `maxBytes > 0` : Logging circulaire. Quand le fichier atteint `maxBytes`, la plus ancienne ligne est supprimée pour faire de la place à la nouvelle. Le fichier ne grossit jamais au-delà de `maxBytes`.
+#### Usage
 
-    ```yaml
-    # Exemple de FileHandler dans config.yaml
-    handlers:
-        file_daily:
-            class: zpp_logs.FileHandler
-            level: zpp_logs.INFO
-            formatter: standard
-            filename: "logs/app_{{ date('%Y-%m-%d') }}.log" # Nom de fichier quotidien
-            maxBytes: 0 # Pas de limite de taille
-            backupCount: 0 # Pas de rotation
-        file_rotated:
-            class: zpp_logs.FileHandler
-            level: zpp_logs.INFO
-            formatter: standard
-            filename: "logs/rotated_app.log"
-            maxBytes: 1048576 # 1 MB
-            backupCount: 5 # Garde 5 fichiers de backup (rotated_app.log.1, .2, etc.)
-        file_circular:
-            class: zpp_logs.FileHandler
-            level: zpp_logs.DEBUG
-            formatter: standard
-            filename: "logs/circular_debug.log"
-            maxBytes: 524288 # 512 KB
-            backupCount: 0 # Active le logging circulaire
-    ```
+##### 1. Programmatic (dans un script Python)
 
-#### DatabaseHandler
+Voici comment instancier et utiliser le `ConsoleHandler` directement dans votre code.
 
-Enregistre les logs dans une base de données (supporte SQLite, MySQL, etc.).
+```python
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.console import ConsoleHandler
+from zpp_logs.levels import INFO
 
-*   **`model`** : (Optionnel) Permet de spécifier un modèle de table SQLAlchemy. C'est la méthode recommandée pour un contrôle précis du schéma de la table.
-    *   En configuration YAML, fournissez le chemin d'importation du modèle : `model: 'mon_app.models.LogEntry'`.
-    *   En configuration programmatique, passez directement la classe du modèle : `model=LogEntry`.
-    *   Si un modèle est fourni, le handler utilisera son schéma pour créer la table (si elle n'existe pas). Les paramètres `table` et `columns` deviennent alors facultatifs.
+# 1. Créer un formateur
+formatter = CustomFormatter(
+    format_str="{{ timestamp.strftime('%H:%M:%S') }} - {{ levelname }} - {{ msg }}"
+)
 
-*   **`connector`** : Un dictionnaire spécifiant les détails de connexion à la base de données.
-    *   `engine` : Le type de base de données (ex: `sqlite`, `mysql`).
-    *   Pour `sqlite` : `filename` (chemin du fichier de base de données).
-    *   Pour `mysql` : `host`, `user`, `password`, `database`.
-    *   `table` : Le nom de la table où les logs seront stockés (par défaut: `logs`).
-*   **`columns`** : (Optionnel) Un dictionnaire pour mapper les attributs du record de log aux noms de colonnes de la table. Les valeurs peuvent être des expressions Jinja2. Si non spécifié, des colonnes par défaut (`timestamp`, `level`, `logger_name`, `message`) sont utilisées.
+# 2. Créer une instance du handler
+console_handler = ConsoleHandler(level=INFO, formatter=formatter)
 
-    ```yaml
-    # Exemple de DatabaseHandler dans config.yaml
-    handlers:
-        db_sqlite:
-            class: zpp_logs.DatabaseHandler
-            level: zpp_logs.INFO
-            formatter: standard
-            connector:
-                engine: sqlite
-                filename: "logs/app_logs.db"
-                table: "application_events"
-            columns: # Mappage personnalisé des colonnes
-                event_time: "date('%Y-%m-%d %H:%M:%S')" # Renomme 'timestamp' en 'event_time'
-                log_level: "levelname" # Renomme 'level' en 'log_level'
-                source: "name" # Renomme 'logger_name' en 'source'
-                full_message: "msg" # Renomme 'message' en 'full_message'
-                user_id: "user_id if 'user_id' in record else 'N/A'" # Ajoute une colonne conditionnelle
-        db_mysql:
-            class: zpp_logs.DatabaseHandler
-            level: zpp_logs.WARNING
-            formatter: standard
-            connector:
-                engine: mysql
-                host: localhost
-                user: loguser
-                password: logpassword
-                database: myapp_logs_db
-            # Utilise les colonnes par défaut si 'columns' n'est pas spécifié
+# 3. Créer un logger avec ce handler
+logger = Logger(name="my_app", handlers=[console_handler])
 
-**Exemple avec un modèle SQLAlchemy**
+# 4. Envoyer un message
+logger.info("Ceci est un test pour la console.")
+logger.debug("Ce message ne sera pas affiché car son niveau est inférieur à INFO.")
+```
 
-1.  **Définissez votre modèle SQLAlchemy :**
+##### 2. Déclaratif (dans `config.yaml`)
 
-    ```python
-    # dans un fichier models.py
-    from sqlalchemy.orm import declarative_base
-    from sqlalchemy import Column, Integer, String, DateTime
-    from datetime import datetime
+Voici comment configurer le `ConsoleHandler` dans votre fichier `config.yaml`.
 
-    Base = declarative_base()
+```yaml
+# config.yaml
 
-    class LogEntry(Base):
-        __tablename__ = 'log_entries'
-        id = Column(Integer, primary_key=True)
-        timestamp = Column(DateTime, default=datetime.utcnow)
-        level = Column(String(50))
-        message = Column(String)
-        logger_name = Column(String(100))
-        user_id = Column(Integer) # Exemple de colonne personnalisée
-    ```
+formatters:
+  console_format:
+    format: "{{ levelname }}: {{ msg }}"
 
-2.  **Configurez le handler pour utiliser ce modèle :**
+handlers:
+  # Nom de notre instance de handler
+  console_out:
+    # Classe à utiliser
+    class: zpp_logs.ConsoleHandler
+    # Options du handler
+    level: INFO
+    formatter: console_format
+    output: sys.stdout
 
-    *En `config.yaml` :*
-    ```yaml
-    handlers:
-        db_with_model:
-            class: zpp_logs.DatabaseHandler
-            level: zpp_logs.INFO
-            formatter: standard
-            connector:
-                engine: sqlite
-                filename: "logs/app_with_model.db"
-            model: 'models.LogEntry' # Chemin d'importation du modèle
-    ```
+loggers:
+  root:
+    # Associer le handler au logger
+    handlers: [console_out]
+```
 
-    *En Python :*
-    ```python
-    # from models import LogEntry
-    db_handler_model = DatabaseHandler(
-        level=INFO,
-        formatter=standard_formatter,
-        connector={"engine": "sqlite", "filename": "logs/app_with_model.db"},
-        model=LogEntry # Passez la classe du modèle directement
-    )
-    ```
-    ```
 
-#### SMTPHandler
+### DatabaseHandler
 
-Envoie les logs par e-mail via un serveur SMTP. Idéal pour les alertes critiques.
+Le `DatabaseHandler` enregistre les messages de log dans une table de base de données relationnelle.
 
-*   **`host`** : L'adresse du serveur SMTP.
-*   **`port`** : Le port du serveur SMTP (souvent 25, 587 pour TLS, 465 pour SSL).
-*   **`username`** : Nom d'utilisateur pour l'authentification SMTP.
-*   **`password`** : Mot de passe pour l'authentification SMTP.
-*   **`fromaddr`** : L'adresse e-mail de l'expéditeur.
-*   **`toaddrs`** : Une liste d'adresses e-mail des destinataires.
-*   **`subject`** : Le sujet de l'e-mail. Peut inclure des expressions Jinja2 pour des sujets dynamiques.
+#### Fonctionnalité
 
-    ```yaml
-    # Exemple de SMTPHandler dans config.yaml
-    handlers:
-        email_critical:
-            class: zpp_logs.SMTPHandler
-            level: zpp_logs.CRITICAL
-            formatter: standard
-            host: smtp.your-email-provider.com
-            port: 587
-            username: your_email@example.com
-            password: your_email_password
-            fromaddr: "no-reply@your-app.com"
-            toaddrs: ["admin@your-app.com", "devops@your-app.com"]
-            subject: "ALERTE CRITIQUE: {{ levelname }} dans {{ name }} à {{ date('%Y-%m-%d %H:%M:%S') }}"
-    ```
+Ce handler puissant utilise `SQLAlchemy` pour se connecter à différentes bases de données (SQLite et MySQL sont supportés nativement) et y insérer les enregistrements de log. Il offre une grande flexibilité pour structurer les données de log.
 
-#### ResendHandler
+Il peut fonctionner de deux manières :
+1.  **Mode Automatique :** Si vous ne fournissez pas de modèle SQLAlchemy, le handler créera automatiquement une table avec des colonnes par défaut (`id`, `timestamp`, `level`, `logger_name`, `message`) ou selon un mapping que vous spécifiez.
+2.  **Mode Modèle :** Vous pouvez fournir votre propre classe de modèle SQLAlchemy. Le handler utilisera la table définie par ce modèle pour y insérer les logs.
 
-Envoie les logs par e-mail en utilisant l'API Resend. Nécessite une clé API Resend.
+**Dépendances :** Ce handler requiert `SQLAlchemy`. Pour MySQL, vous aurez également besoin de `PyMySQL` (`pip install sqlalchemy pymysql`).
 
-*   **`api_key`** : Votre clé API Resend (commence par `re_`).
-*   **`fromaddr`** : L'adresse e-mail de l'expéditeur (doit être un domaine vérifié dans Resend).
-*   **`to`** : Une liste d'adresses e-mail des destinataires.
-*   **`subject`** : Le sujet de l'e-mail. Peut inclure des expressions Jinja2.
+#### Options
 
-    ```yaml
-    # Exemple de ResendHandler dans config.yaml
-    handlers:
-        email_resend:
-            class: zpp_logs.ResendHandler
-            level: zpp_logs.ERROR
-            formatter: standard
-            api_key: re_YOUR_RESEND_API_KEY_HERE # Remplacez par votre vraie clé API
-            fromaddr: "onboarding@your-verified-domain.com"
-            to: ["support@your-app.com"]
-            subject: "ERREUR APPLICATION: {{ levelname }} détectée dans {{ name }}"
-    ```
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis. |
+| `formatter`| `CustomFormatter`| `None` | Formateur (moins crucial ici car les données sont mappées, mais toujours utilisé pour les règles). |
+| `connector` | `dict` | `None` | **Requis.** Dictionnaire de connexion à la base de données. |
+| `columns` | `dict` | `None` | Optionnel. Mappe les noms de colonnes de la table aux expressions Jinja2 à extraire du log record. |
+| `model` | `str` or `DeclarativeMeta`| `None`| Optionnel. Le modèle SQLAlchemy à utiliser (soit la classe, soit le chemin d'importation).|
+| `ops` | `str` | `'>='` | Opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'insertion en base de données se fait dans un thread séparé. |
+
+##### Détails du `connector`
+
+Le dictionnaire `connector` doit contenir :
+- `engine`: `'sqlite'` ou `'mysql'`.
+- Pour SQLite : `filename` (chemin du fichier) et `table` (nom de la table).
+- Pour MySQL : `host`, `user`, `password`, `database`.
+
+##### Détails du `columns`
+
+Ce dictionnaire est la clé de la flexibilité. La clé est le nom de la colonne dans la base de données, la valeur est une expression Jinja2.
+
+Exemple : `{'user_id': 'user.id', 'request_path': 'request.path'}`
+
+#### Usage
+
+##### 1. Programmatic (Mode Automatique)
+
+```python
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.database import DatabaseHandler
+from zpp_logs.levels import INFO
+
+# 1. Définir le connecteur pour une base SQLite
+db_connector = {
+    'engine': 'sqlite',
+    'filename': 'logs/app_logs.db',
+    'table': 'activity_logs'
+}
+
+# 2. Définir le mapping des colonnes
+# On veut enregistrer le timestamp, le niveau, le message et un 'user_id' personnalisé
+column_mapping = {
+    'timestamp': 'timestamp',
+    'level': 'levelname',
+    'message': 'msg',
+    'user_id': 'user_id' # 'user_id' sera passé en kwarg
+}
+
+# 3. Créer une instance du handler
+db_handler = DatabaseHandler(
+    level=INFO,
+    formatter=CustomFormatter(""), # Le formateur est moins important ici
+    connector=db_connector,
+    columns=column_mapping
+)
+
+# 4. Créer un logger
+logger = Logger(name="db_app", handlers=[db_handler])
+
+# 5. Envoyer un log avec un champ personnalisé
+logger.info("L'utilisateur a changé son mot de passe.", user_id=123)
+logger.warning("Tentative de connexion échouée.", user_id=456)
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+```yaml
+# config.yaml
+
+formatters:
+  # Un formateur vide est suffisant, car le mapping se fait dans le handler
+  db_format:
+    format: ""
+
+handlers:
+  log_to_db:
+    class: zpp_logs.DatabaseHandler
+    level: INFO
+    formatter: db_format
+    # Configuration du connecteur
+    connector:
+      engine: sqlite
+      filename: "config_logs.db"
+      table: "system_events"
+    # Configuration du mapping
+    columns:
+      timestamp: timestamp
+      level: levelname
+      message: msg
+      logger: name
+
+loggers:
+  root:
+    handlers: [log_to_db]
+```
+
+### FileHandler
+
+Le `FileHandler` écrit les messages de log dans un fichier sur le système de fichiers.
+
+#### Fonctionnalité
+
+Ce handler est utilisé pour la persistance des logs. Il écrit les messages formatés dans un fichier spécifié. Il supporte également des fonctionnalités avancées comme la rotation de fichiers (log rotation) basée sur la taille, ce qui permet de gérer l'espace disque utilisé par les logs.
+
+- **Rotation Standard :** Quand la taille maximale est atteinte, le fichier de log actuel est renommé (ex: `app.log` -> `app.log.1`) et un nouveau fichier vide est créé.
+- **Rotation Circulaire :** Un mode spécial où, au lieu de créer de nouveaux fichiers, la ligne la plus ancienne du fichier est supprimée pour faire de la place.
+
+#### Options
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis. |
+| `formatter`| `CustomFormatter`| `None` | L'instance `CustomFormatter` pour la mise en forme. |
+| `filters` | `list` | `None` | Filtres Jinja2 pour un contrôle fin. |
+| `filename` | `str` | `None` | **Requis.** Le chemin vers le fichier de log. Peut inclure des variables Jinja2. |
+| `maxBytes` | `int` | `0` | La taille maximale en octets que le fichier de log peut atteindre avant la rotation. Si `0`, la rotation est désactivée. |
+| `backupCount`| `int` | `0` | Le nombre de fichiers de sauvegarde à conserver. Si `> 0`, la rotation standard est utilisée. Si `0` et `maxBytes > 0`, la rotation circulaire est utilisée. |
+| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'écriture des logs se fait dans un thread séparé. |
+
+#### Usage
+
+##### 1. Programmatic (dans un script Python)
+
+Voici comment configurer un `FileHandler` avec rotation.
+
+```python
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.file import FileHandler
+from zpp_logs.levels import DEBUG
+
+# 1. Créer un formateur détaillé
+formatter = CustomFormatter(
+    format_str="{{ timestamp.isoformat() }} | {{ levelname }} | {{ msg }}"
+)
+
+# 2. Créer une instance du handler avec rotation
+# Rotation après 1 MB, conserve 3 fichiers de backup (app.log.1, app.log.2, app.log.3)
+file_handler = FileHandler(
+    level=DEBUG,
+    formatter=formatter,
+    filename='app.log',
+    maxBytes=1024 * 1024,  # 1 MB
+    backupCount=3
+)
+
+# 3. Créer un logger avec ce handler
+logger = Logger(name="file_app", handlers=[file_handler])
+
+# 4. Envoyer des messages
+logger.info("L'application a démarré.")
+logger.debug("Ceci est une information de diagnostic.")
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+Voici comment configurer le `FileHandler` dans votre fichier `config.yaml`.
+
+```yaml
+# config.yaml
+
+formatters:
+  file_format:
+    format: "{{ timestamp }} | {{ name }} | {{ levelname }} | {{ msg }}"
+
+handlers:
+  # Nom de notre instance de handler
+  log_to_file:
+    # Classe à utiliser
+    class: zpp_logs.FileHandler
+    # Options du handler
+    level: DEBUG
+    formatter: file_format
+    filename: config_app.log
+    maxBytes: 512000  # 500 KB
+    backupCount: 5
+    encoding: utf-8
+
+loggers:
+  root:
+    handlers: [log_to_file]
+```
+
+
+### ResendHandler
+
+Le `ResendHandler` envoie des emails de log en utilisant l'API du service [Resend](https://resend.com).
+
+#### Fonctionnalité
+
+Ce handler est une alternative moderne au `SMTPHandler`. Il s'intègre avec Resend, une plateforme d'envoi d'emails transactionnels pour les développeurs. Il est idéal pour envoyer des alertes critiques de manière fiable sans avoir à gérer son propre serveur SMTP.
+
+Le handler envoie une requête POST à l'API de Resend. Le sujet de l'email peut être un template Jinja2, et le corps de l'email (`html`) est le message brut (`msg`) du log.
+
+**Dépendances :** Ce handler requiert la librairie `requests` (`pip install requests`).
+
+#### Options
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis pour déclencher l'envoi. |
+| `formatter`| `CustomFormatter`| `None` | Formateur (le corps est `msg` brut, mais utile pour les règles et le sujet). |
+| `api_key` | `str` | `None` | **Requis.** Votre clé d'API secrète fournie par Resend. |
+| `fromaddr` | `str` | `None` | **Requis.** L'adresse email de l'expéditeur (doit être un domaine vérifié sur Resend). |
+| `to` | `list` | `None` | **Requis.** Une liste d'adresses email de destinataires. |
+| `subject` | `str` | `None` | **Requis.** Le sujet de l'email, qui peut contenir des expressions Jinja2. |
+| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'envoi de l'email se fait dans un thread séparé. |
+
+#### Usage
+
+##### 1. Programmatic (dans un script Python)
+
+**Note :** Ne jamais coder en dur votre clé d'API. Utilisez des variables d'environnement.
+
+```python
+import os
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.resend import ResendHandler
+from zpp_logs.levels import ERROR
+
+# 1. Créer une instance du handler
+# La clé d'API est récupérée depuis les variables d'environnement
+resend_handler = ResendHandler(
+    level=ERROR,
+    formatter=CustomFormatter(""), # Corps de l'email = msg
+    api_key=os.environ.get('RESEND_API_KEY'),
+    fromaddr="onboarding@resend.dev", # Adresse d'exemple fournie par Resend
+    to=["votre_email@exemple.com"],
+    subject="[ERREUR] Un problème est survenu sur {{ name }}"
+)
+
+# 2. Créer un logger avec ce handler
+logger = Logger(name="user_service", handlers=[resend_handler])
+
+# 3. Envoyer un log qui déclenchera l'email via Resend
+logger.error("Impossible de mettre à jour le profil de l'utilisateur #500. Erreur de base de données.")
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+**Attention :** Stocker des clés d'API en clair dans des fichiers de configuration est une mauvaise pratique.
+
+```yaml
+# config.yaml
+
+formatters:
+  resend_format:
+    format: ""
+
+handlers:
+  send_resend_alert:
+    class: zpp_logs.ResendHandler
+    level: ERROR
+    formatter: resend_format
+    # --- Paramètres Resend ---
+    # Idéalement, utilisez un placeholder qui est remplacé au démarrage de l'app
+    api_key: "RE_VOTRE_CLÉ_API_Ici"
+    fromaddr: "app@votre-domaine-verifie.com"
+    to:
+      - "devops@exemple.com"
+    subject: "Erreur détectée dans le service {{ name }}"
+
+loggers:
+  user_service: # Logger spécifique
+    handlers: [send_resend_alert]
+  root: # Logger racine
+    handlers: [] # Ne pas envoyer d'email pour les logs généraux
+```
+
+### SMTPHandler
+
+Le `SMTPHandler` envoie les messages de log par email via un serveur SMTP.
+
+#### Fonctionnalité
+
+Ce handler est particulièrement utile pour les notifications d'événements critiques. Lorsqu'un log atteint un certain niveau de sévérité (typiquement `ERROR` ou `CRITICAL`), ce handler peut envoyer un email à une liste de destinataires pour une alerte immédiate.
+
+Le sujet de l'email peut être une chaîne de caractères formatée avec Jinja2, permettant de créer des sujets dynamiques. Le corps de l'email est le message brut du log (`msg`). La connexion au serveur SMTP se fait via TLS pour plus de sécurité.
+
+#### Options
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum (ex: `ERROR`). |
+| `formatter`| `CustomFormatter`| `None` | Formateur (le corps de l'email est `msg` brut, mais le formateur peut être utile pour les règles et le sujet). |
+| `host` | `str` | `None` | **Requis.** L'adresse du serveur SMTP. |
+| `port` | `int` | `None` | **Requis.** Le port du serveur SMTP (ex: 587 pour TLS). |
+| `username` | `str` | `None` | **Requis.** Le nom d'utilisateur pour s'authentifier auprès du serveur SMTP. |
+| `password` | `str` | `None` | **Requis.** Le mot de passe pour l'authentification. |
+| `fromaddr` | `str` | `None` | **Requis.** L'adresse email de l'expéditeur. |
+| `toaddrs` | `list` | `None` | **Requis.** Une liste d'adresses email de destinataires. |
+| `subject` | `str` | `None` | **Requis.** Le sujet de l'email. Peut contenir des expressions Jinja2. |
+| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'envoi de l'email se fait dans un thread séparé pour ne pas bloquer l'application. |
+
+#### Usage
+
+##### 1. Programmatic (dans un script Python)
+
+**Note :** Pour des raisons de sécurité, évitez de coder en dur les identifiants. Utilisez des variables d'environnement ou un gestionnaire de secrets.
+
+```python
+import os
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.smtp import SMTPHandler
+from zpp_logs.levels import CRITICAL
+
+# 1. Créer une instance du handler avec les informations du serveur SMTP
+# (Ici, nous supposons que les identifiants sont dans des variables d'environnement)
+smtp_handler = SMTPHandler(
+    level=CRITICAL,
+    formatter=CustomFormatter(""), # Le corps est le message brut
+    host="smtp.exemple.com",
+    port=587,
+    username=os.environ.get('SMTP_USER'),
+    password=os.environ.get('SMTP_PASS'),
+    fromaddr="noreply@monapp.com",
+    toaddrs=["admin@exemple.com", "dev-on-call@exemple.com"],
+    subject="[ALERTE CRITIQUE] Erreur dans {{ name }}"
+)
+
+# 2. Créer un logger avec ce handler
+logger = Logger(name="payment_gateway", handlers=[smtp_handler])
+
+# 3. Envoyer un log critique qui déclenchera l'envoi d'un email
+logger.critical("Échec du traitement du paiement pour la transaction #12345.")
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+**Attention :** Stocker des mots de passe en clair dans des fichiers de configuration est une mauvaise pratique de sécurité. Préférez des mécanismes d'injection de secrets. Cet exemple est à titre illustratif.
+
+```yaml
+# config.yaml
+
+formatters:
+  email_format:
+    format: "" # Non utilisé pour le corps de l'email
+
+handlers:
+  send_alert_email:
+    class: zpp_logs.SMTPHandler
+    level: CRITICAL
+    formatter: email_format
+    # --- Paramètres SMTP ---
+    host: smtp.exemple.com
+    port: 587
+    # Idéalement, utilisez des 'placeholders' que vous remplacez au démarrage
+    username: "MON_USER_SMTP"
+    password: "MON_MOT_DE_PASSE_SMTP"
+    fromaddr: "alert@system.com"
+    toaddrs:
+      - "admin-equipe-a@exemple.com"
+      - "admin-equipe-b@exemple.com"
+    subject: "ALERTE: {{ levelname }} dans le logger '{{ name }}'"
+
+loggers:
+  root:
+    handlers: [send_alert_email] # Attacher le handler au logger
+```
+
+
+### WebhookHandler
+
+Le `WebhookHandler` envoie les messages de log à une URL de webhook via une requête HTTP POST.
+
+#### Fonctionnalité
+
+Ce handler est extrêmement versatile et permet de s'intégrer avec une multitude de services tiers (Slack, Discord, IFTTT, Zapier, etc.) ou avec vos propres endpoints d'API. Il envoie une charge utile (payload) JSON personnalisable à une URL spécifiée.
+
+Il supporte plusieurs méthodes d'authentification pour sécuriser les appels :
+- **Bearer Token :** Authentification via un jeton dans l'en-tête `Authorization`.
+- **Basic Auth :** Authentification HTTP Basic avec un nom d'utilisateur et un mot de passe.
+- **Custom Token :** Authentification via un jeton secret passé dans l'en-tête `X-Webhook-Token`.
+- **Aucune :** Si aucune méthode n'est spécifiée, la requête est envoyée sans authentification.
+
+**Dépendances :** Ce handler requiert la librairie `requests` (`pip install requests`).
+
+#### Options
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis pour déclencher l'envoi. |
+| `formatter`| `CustomFormatter`| `None` | Formateur (utile pour les règles, moins pour le formatage direct). |
+| `url` | `str` | `None` | **Requis.** L'URL du webhook à appeler. |
+| `data` | `dict` | `{}` | **Requis.** Un dictionnaire définissant la structure du JSON à envoyer. Les valeurs sont des templates Jinja2. |
+| `bearer` | `str` | `None` | Le jeton (token) à utiliser pour l'authentification de type "Bearer". |
+| `basic` | `dict` | `None` | Un dictionnaire avec les clés `user` and `pass` pour l'authentification "Basic". |
+| `token` | `str` | `None` | Le jeton à passer dans l'en-tête `X-Webhook-Token` pour une authentification personnalisée. |
+| `ssl_verify`|`bool` | `True` | Si `False`, la vérification du certificat SSL de l'URL du webhook sera désactivée. À utiliser avec prudence. |
+| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'appel au webhook se fait dans un thread séparé. |
+
+#### Usage
+
+##### 1. Programmatic (dans un script Python)
+
+```python
+import os
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.webhook import WebhookHandler
+from zpp_logs.levels import WARNING
+
+# 1. Définir la structure de la charge utile (payload)
+json_payload_template = {
+    "content": "Alerte de niveau {{ levelname }} sur le service {{ name }}",
+    "embeds": [{
+        "title": "Détails du Log",
+        "description": "{{ msg }}",
+        "color": 16711680 # Rouge pour les erreurs (exemple pour Discord)
+    }],
+    "extra_data": {
+        "request_id": "{{ request_id | default('N/A') }}"
+    }
+}
+
+# 2. Créer une instance du handler
+webhook_handler = WebhookHandler(
+    level=WARNING,
+    formatter=CustomFormatter(""), # Pas besoin de formateur de chaîne ici
+    url=os.environ.get("DISCORD_WEBHOOK_URL"),
+    data=json_payload_template
+    # Aucune authentification nécessaire pour les webhooks Discord
+)
+
+# 3. Créer un logger avec ce handler
+logger = Logger(name="api_gateway", handlers=[webhook_handler])
+
+# 4. Envoyer un log
+logger.warning(
+    "Le temps de réponse de l'API externe a dépassé le seuil.",
+    request_id="a7b2c9x4"
+)
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+C'est ici que ce handler brille par sa lisibilité.
+
+######## Exemple 1 : Authentification Bearer
+
+```yaml
+formatters:
+  standard: # Le formateur peut être vide si non nécessaire
+    format: ""
+
+handlers:
+  send_to_my_api:
+    class: zpp_logs.WebhookHandler
+    level: INFO
+    formatter: standard
+    url: "https://api.mon-service.com/v1/log"
+    # --- Authentification ---
+    bearer: "VOTRE_JETON_API_SECRET"
+    # --- Données JSON ---
+    data:
+      application: "backend-worker"
+      source: "production"
+      status: "{{ levelname }}"
+      message: "{{ msg }}"
+      user_context: "{{ user_id | default('system') }}"
+
+loggers:
+  root:
+    handlers: [send_to_my_api]
+```
+
+######## Exemple 2 : Authentification Basic
+
+```yaml
+handlers:
+  send_to_legacy_system:
+    class: zpp_logs.WebhookHandler
+    level: ERROR
+    formatter: standard
+    url: "https://legacy.interne/api/log"
+    # --- Authentification ---
+    basic:
+      user: "api_user"
+      pass: "S3cr3tP4ssw0rd"
+    # --- Données JSON ---
+    data:
+      severity: "{{ levelno }}"
+      text: "{{ msg }}"
+
+loggers:
+  legacy_connector:
+    handlers: [send_to_legacy_system]
+```
+
+######## Exemple 3 : Authentification par Jeton Personnalisé (`X-Webhook-Token`)
+
+```yaml
+handlers:
+  send_to_private_webhook:
+    class: zpp_logs.WebhookHandler
+    level: INFO
+    formatter: standard
+    url: "https://mon-service.privé/webhook"
+    # --- Authentification ---
+    token: "VOTRE_TOKEN_SECRET_PARTAGÉ"
+    # --- Données JSON ---
+    data:
+      source: "{{ name }}"
+      log_level: "{{ levelname }}"
+      log_message: "{{ msg }}"
+
+loggers:
+  private_app:
+    handlers: [send_to_private_webhook]
+```
+
+
 
 ### Journalisation Asynchrone
 
