@@ -9,3 +9,7 @@
 ## [2.1.0] - 2025-12-10
 - Ajout du handler WebhookHandler
 - Quelques modifications non significatives
+
+## [2.1.1] - 2025-12-16
+- Correction de l'authentification sur le handler SMTP
+- Ajout des options cc, bcc et attachments sur le handler SMTP

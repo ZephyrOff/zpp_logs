@@ -51,6 +51,81 @@ Les niveaux de log sont des entiers, avec des constantes prédéfinies :
 
 Les loggers sont les points d'entrée pour enregistrer les messages. Ils possèdent un nom et une liste de handlers.
 
+#### Approche dynamique
+
+##### 1. Instanciation d'un Logger
+Un Logger a besoin d'un nom (name) et d'une liste de handlers pour être créé.
+
+```python
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.console import ConsoleHandler
+from zpp_logs.levels import DEBUG
+
+# Étape 1: Créer un formateur
+my_formatter = CustomFormatter("{{ levelname }}: {{ msg }}")
+
+# Étape 2: Créer un ou plusieurs handlers
+console_handler = ConsoleHandler(level=DEBUG, formatter=my_formatter)
+
+# Étape 3: Créer le logger
+logger = Logger(
+    name="my_app",
+    handlers=[console_handler]
+)
+```
+
+##### 2. Émission de Logs
+Une fois le logger créé, utilisez ses méthodes de niveau pour émettre des messages.
+
+```python
+logger.debug("Information de débogage détaillée.")
+logger.info("Démarrage du processus.")
+logger.warning("Le disque est presque plein.")
+logger.error("Impossible de contacter le service externe.")
+logger.critical("Échec critique, arrêt de l'application.")
+```
+
+
+##### 3. Passer des Données Supplémentaires
+Une fonctionnalité clé est la capacité de passer des données structurées en utilisant des arguments clé-valeur (**kwargs). Ces données sont ajoutées au record du log et deviennent disponibles dans votre CustomFormatter (à la fois pour le formatage et pour les règles).
+
+```python
+# Le formateur peut utiliser 'user_id' et 'ip_address'
+formatter = CustomFormatter("{{ msg }} (user: {{ user_id }}, ip: {{ ip_address }})")
+logger.add_handler(ConsoleHandler(level=DEBUG, formatter=formatter))
+
+
+# Passez les données en kwargs lors de l'appel de log
+logger.info(
+    "Tentative de connexion de l'utilisateur.",
+    user_id="alice",
+    ip_address="192.168.1.100"
+)
+# Sortie: Tentative de connexion de l'utilisateur. (user: alice, ip: 192.168.1.100)
+```
+
+#### Approche par instance de config
+
+```python
+from zpp_logs.core import LogManager
+
+# Une seule instance de manager pour toute l'application
+manager = LogManager('config.yaml')
+
+# Obtenir le logger nommé 'database'
+db_logger = manager.get_logger('database')
+db_logger.debug("Connexion à la base de données...") # Ira dans app.log
+
+# Obtenir le logger 'root'
+root_logger = manager.get_logger('root')
+root_logger.info("Message d'information général.") # Ira dans la console
+
+# Demander un logger qui n'est pas dans la config
+# Le LogManager renverra la configuration du logger 'root' !
+api_logger = manager.get_logger('external_api')
+api_logger.warning("Problème avec l'API externe.") # Ira dans la console
+```
+
 ### Formatters
 
 Définissent l'apparence des messages de log.
@@ -374,16 +449,24 @@ Le handler envoie une requête POST à l'API de Resend. Le sujet de l'email peut
 
 #### Options
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|---------|-------------|
-| `level` | `int` | `NOTSET` | Le niveau de log minimum requis pour déclencher l'envoi. |
-| `formatter`| `CustomFormatter`| `None` | Formateur (le corps est `msg` brut, mais utile pour les règles et le sujet). |
-| `api_key` | `str` | `None` | **Requis.** Votre clé d'API secrète fournie par Resend. |
-| `fromaddr` | `str` | `None` | **Requis.** L'adresse email de l'expéditeur (doit être un domaine vérifié sur Resend). |
-| `to` | `list` | `None` | **Requis.** Une liste d'adresses email de destinataires. |
-| `subject` | `str` | `None` | **Requis.** Le sujet de l'email, qui peut contenir des expressions Jinja2. |
-| `ops` | `str` | `'>='` | L'opérateur de comparaison pour le niveau. |
-| `async_mode` | `bool` | `False` | Si `True`, l'envoi de l'email se fait dans un thread séparé. |
+
+| Paramètre     | Type              | Défaut   | Description                                                                                                    |
+| ------------- | ----------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `level`       | `int`             | `NOTSET` | Le niveau de log minimum (ex: `ERROR`).                                                                        |
+| `formatter`   | `CustomFormatter` | `None`   | Formateur (le corps de l'email est `msg` brut, mais le formateur peut être utile pour les règles et le sujet). |
+| `host`        | `str`             | `None`   | **Requis.** L'adresse du serveur SMTP.                                                                         |
+| `port`        | `int`             | `None`   | **Requis.** Le port du serveur SMTP (ex: 587 pour TLS).                                                        |
+| `username`    | `str`             | `None`   | **Requis.** Le nom d'utilisateur pour s'authentifier auprès du serveur SMTP.                                   |
+| `password`    | `str`             | `None`   | **Requis.** Le mot de passe pour l'authentification.                                                           |
+| `fromaddr`    | `str`             | `None`   | **Requis.** L'adresse email de l'expéditeur.                                                                   |
+| `toaddrs`     | `list`            | `None`   | **Requis.** Une liste d'adresses email de destinataires.                                                       |
+| `subject`     | `str`             | `None`   | **Requis.** Le sujet de l'email. Peut contenir des expressions Jinja2.                                         |
+| `ops`         | `str`             | `'>='`   | L'opérateur de comparaison pour le niveau.                                                                     |
+| `async_mode`  | `bool`            | `False`  | Si `True`, l'envoi de l'email se fait dans un thread séparé pour ne pas bloquer l'application.                 |
+| `insecure`    | `bool`            | `False`  | Si `True`, connexion au serveur sans TLS                                                                       |
+| `cc`          | `list`            | `None`   | Personne en copie des mails                                                                                    |
+| `bcc`         | `list`            | `None`   | Personne en copie des mails                                                                                    |
+| `attachments` | `list`            | `None`   | Listes des fichiers à joindre au mail                                                                          |
 
 #### Usage
 
