@@ -17,13 +17,31 @@ class WebhookHandler(BaseHandler):
         self.basic_auth = basic
         self.token = token
 
+    def _render_value(self, value, record):
+        """Recursively render values using Jinja."""
+        
+        if isinstance(value, dict):
+            return {
+                k: self._render_value(v, record)
+                for k, v in value.items()
+            }
+
+        elif isinstance(value, list):
+            return [
+                self._render_value(item, record)
+                for item in value
+            ]
+
+        elif isinstance(value, str):
+            template = self.jinja_env.from_string(value)
+            return template.render(record)
+
+        else:
+            # int, float, bool, None etc.
+            return value
+
     def _render_payload(self, record):
-        """Renders the data template with the log record."""
-        payload = {}
-        for key, template_str in self.data_template.items():
-            template = self.jinja_env.from_string(str(template_str))
-            payload[key] = template.render(record)
-        return payload
+        return self._render_value(self.data_template, record)
 
     def _emit_sync(self, record):
         """Prepares and sends the webhook."""

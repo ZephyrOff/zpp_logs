@@ -773,6 +773,185 @@ loggers:
 ```
 
 
+### DiscordHandler
+
+Le `DiscordHandler` envoie les messages de log sur Discord via un bot, dans un channel ou en message privé. Il supporte les messages simples et les embeds stylisés avec templates Jinja2.
+
+#### Fonctionnalité
+
+Ce handler permet d'intégrer vos logs directement dans Discord. Il offre deux modes de messagerie :
+1. **Messages simples** : Texte brut formaté avec Jinja2.
+2. **Embeds** : Messages stylisés avec titre, description, couleurs, champs personnalisés, footer, author, images et timestamps.
+
+Les couleurs des embeds supportent les formats hexadécimaux (`#RRGGBB` ou `RRGGBB`) en plus du format décimal Discord.
+
+**Dépendances :** Ce handler requiert la librairie `requests` (`pip install requests`).
+
+#### Options
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|---------|-------------|
+| `level` | `int` | `NOTSET` | Le niveau de log minimum requis. |
+| `formatter`| `CustomFormatter`| `None` | Formateur (utile pour les règles). |
+| `bot_token` | `str` | `None` | **Requis.** Token du bot Discord. |
+| `guild_id` | `str` | `None` | ID du serveur Discord (alternative à `guild_name`). |
+| `guild_name` | `str` | `None` | Nom du serveur Discord (alternative à `guild_id`). |
+| `channel_id` | `str` | `None` | ID du channel Discord (alternative à `channel_name`). |
+| `channel_name` | `str` | `None` | Nom du channel Discord (alternative à `channel_id`). Pour les DM, optionnel. |
+| `user_id` | `str` | `None` | ID de l'utilisateur pour un message privé (alternative à `user_name`). |
+| `user_name` | `str` | `None` | Nom d'utilisateur Discord pour un message privé (alternative à `user_id`). Requiert `guild_id` ou `guild_name`. |
+| `content` | `str` | `None` | Template Jinja2 pour le contenu du message simple. |
+| `embeds` | `list` | `None` | Liste d'embeds avec templates Jinja2. Chaque embed peut contenir : `title`, `description`, `color` (hex ou décimal), `fields`, `footer`, `author`, `image`, `thumbnail`, `timestamp` (booléen). |
+| `ssl_verify`|`bool` | `True` | Si `False`, désactive la vérification du certificat SSL. |
+| `ops` | `str` | `'>='` | Opérateur de comparaison pour le niveau. |
+| `async_mode` | `bool` | `False` | Si `True`, l'envoi se fait dans un thread séparé. |
+
+#### Usage
+
+##### 1. Programmatic (dans un script Python)
+
+**Message simple :**
+```python
+from zpp_logs.core import Logger, CustomFormatter
+from zpp_logs.handlers.discord import DiscordHandler
+from zpp_logs.levels import ERROR
+
+discord_handler = DiscordHandler(
+    level=ERROR,
+    formatter=CustomFormatter(""),
+    bot_token="YOUR_BOT_TOKEN",
+    guild_name="Mon Serveur",
+    channel_name="logs",
+    content="🔴 {{ levelname }} : {{ msg }}"
+)
+
+logger = Logger(name="discord_app", handlers=[discord_handler])
+logger.error("Une erreur s'est produite.")
+```
+
+Avec embeds :
+
+```python
+embeds_config = [
+    {
+        "title": "Erreur détectée",
+        "description": "{{ msg }}",
+        "color": "#E74C3C",  # Rouge en hex
+        "fields": [
+            {
+                "name": "Niveau",
+                "value": "{{ levelname }}",
+                "inline": True
+            },
+            {
+                "name": "Logger",
+                "value": "{{ name }}",
+                "inline": True
+            }
+        ],
+        "footer": {
+            "text": "zpp_logs"
+        },
+        "timestamp": True
+    }
+]
+
+discord_handler = DiscordHandler(
+    level=ERROR,
+    formatter=CustomFormatter(""),
+    bot_token="YOUR_BOT_TOKEN",
+    guild_name="Mon Serveur",
+    channel_name="alerts",
+    content="Nouvelle alerte",
+    embeds=embeds_config
+)
+```
+
+Message privé :
+
+
+```python
+discord_handler = DiscordHandler(
+    level=ERROR,
+    formatter=CustomFormatter(""),
+    bot_token="YOUR_BOT_TOKEN",
+    guild_name="Mon Serveur",
+    user_name="admin_user",
+    content="{{ levelname }}: {{ msg }}"
+)
+```
+
+##### 2. Déclaratif (dans `config.yaml`)
+
+Message simple :
+
+
+```python
+formatters:
+  discord_format:
+    format: ""
+
+handlers:
+  discord_simple:
+    class: zpp_logs.DiscordHandler
+    level: INFO
+    formatter: discord_format
+    bot_token: "YOUR_BOT_TOKEN"
+    guild_name: "Mon Serveur"
+    channel_name: "logs"
+    content: "{{ levelname }} - {{ msg }}"
+
+loggers:
+  root:
+    handlers: [discord_simple]
+```
+
+Avec embeds et couleurs hex :
+
+```python
+handlers:
+  discord_embeds:
+    class: zpp_logs.DiscordHandler
+    level: ERROR
+    formatter: discord_format
+    bot_token: "YOUR_BOT_TOKEN"
+    guild_name: "Mon Serveur"
+    channel_name: "alerts"
+    content: "Nouvelle alerte"
+    embeds:
+      - title: "🔴 {{ levelname }}"
+        description: "{{ msg }}"
+        color: "E74C3C"  # Rouge en hex (avec ou sans #)
+        fields:
+          - name: "Module"
+            value: "{{ name }}"
+            inline: true
+          - name: "Niveau"
+            value: "{{ levelno }}"
+            inline: true
+        footer:
+          text: "zpp_logs Discord Handler"
+        timestamp: true
+```
+
+Message privé :
+
+```python
+handlers:
+  discord_dm:
+    class: zpp_logs.DiscordHandler
+    level: CRITICAL
+    formatter: discord_format
+    bot_token: "YOUR_BOT_TOKEN"
+    guild_name: "Mon Serveur"
+    user_name: "admin_user"
+    content: "ALERTE CRITIQUE: {{ msg }}"
+
+loggers:
+  root:
+    handlers: [discord_dm]
+```
+
 
 ### Journalisation Asynchrone
 

@@ -1,6 +1,6 @@
 [project]
 name = "zpp_logs"
-version = "2.1.1"
+version = "2.2.0"
 description = "Module de gestion de logs"
 mainfile = "zpp_logs.py"
 requires-python = ">=3.6"
@@ -29,10 +29,6 @@ pyyaml = "N.A"
 jinja2 = "N.A"
 requests = "N.A"
 SQLAlchemy = "N.A"
-
-[project.dependencies.windows]
-
-[project.dependencies.linux]
 
 [project.build]
 packages = ["os", "inspect", "sys", "re", "platform", "datetime", "zpp_color", "smtplib", "email", "psutil", "yaml", "impmagic", "pyyaml", "jinja2", "requests", "SQLAlchemy"]

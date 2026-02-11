@@ -7,6 +7,7 @@ from .handlers.file import FileHandler
 from .handlers.resend import ResendHandler
 from .handlers.smtp import SMTPHandler
 from .handlers.webhook import WebhookHandler
+from .handlers.discord import DiscordHandler
 
 from .levels import CRITICAL, ERROR, WARNING, SUCCESS, INFO, DEBUG, NOTSET, _level_to_name, _name_to_level
 from .jinja_utils import _shared_jinja_env
@@ -20,6 +21,7 @@ _handler_class_map = {
     'zpp_logs.SMTPHandler': SMTPHandler,
     'zpp_logs.ResendHandler': ResendHandler,
     'zpp_logs.WebhookHandler': WebhookHandler,
+    'zpp_logs.DiscordHandler': DiscordHandler,
 }
 
 # --- Core Components ---
@@ -124,6 +126,10 @@ class Logger:
     def critical(self, msg, *args, **kwargs):
         self._log(CRITICAL, msg, *args, **kwargs)
 
+    def log(self, msg, level, *args, **kwargs):
+        LEVEL = _name_to_level[level]
+        self._log(LEVEL, msg, *args, **kwargs)
+
     # --- Dynamic Modification Methods for Logger ---
     def add_handler(self, handler_instance):
         if handler_instance not in self.handlers:
@@ -135,13 +141,12 @@ class Logger:
 
 class LogManager:
     def __init__(self, config_file):
-        with open(config_file, 'r') as f:
+        with open(config_file, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
         
         self._formatters = self._create_formatters()
         self._handlers = self._create_handlers()
         self._loggers = {}
-        self.default_logger = self.get_logger('root') # Set default logger
 
     def _create_formatters(self):
         formatters = {}
@@ -195,8 +200,6 @@ class LogManager:
 
         logger_config = self.config.get('loggers', {}).get(name)
         if not logger_config:
-            if name != 'root' and 'root' in self.config.get('loggers', {}):
-                return self.get_logger('root')
             raise ValueError(f"Logger '{name}' not found in configuration.")
 
         logger_handlers = [self._handlers[h_name] for h_name in logger_config.get('handlers', []) if h_name in self._handlers]
